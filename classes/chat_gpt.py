@@ -3,6 +3,8 @@ import os
 import openai
 import httpx
 
+
+
 class ChatGpt:
 	_instance = None
 	
@@ -26,6 +28,16 @@ class ChatGpt:
 		)
 		return gpt_client
 	
+	def _init_message(self, prompt_name: str) -> dict[str, str | list[dict[str, str]]]:
+		return {'messages': [
+			{
+				'role': 'system',
+				'content': self._load_prompt(prompt_name),
+			}
+		],
+			'model': 'gpt-3.5-turbo',
+		}
+	
 	@staticmethod
 	def _load_prompt(prompt_name: str)-> str:
 		prompt_path = os.path.join('resources', 'prompts', f'{prompt_name}.txt')
@@ -33,14 +45,21 @@ class ChatGpt:
 			prompt = file.read()
 		return prompt
 	
-	async def text_request(self,prompt_name: str):
+	async def random_request(self):
 		respons = await self._client.chat.completions.create(
-			messages=[
-				{
-					'role': 'system',
-					'content': self._load_prompt(prompt_name),
-				}
-			],
-			model='gpt-3.5-turbo',
+			** self._init_message('random')
+		)
+		return respons.choices[0].message.content
+		
+	async def gpt_request(self, request_text: str) -> str:
+		key_args = self._init_message('gpt')
+		key_args['messages'].append(
+			{
+				'role': 'user',
+				'content': request_text,
+			}
+		)
+		respons = await self._client.chat.completions.create(
+			**key_args,
 		)
 		return respons.choices[0].message.content
