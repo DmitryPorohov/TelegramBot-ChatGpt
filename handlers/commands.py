@@ -1,13 +1,12 @@
-import openai
 from aiogram import Bot, Router, F
 from aiogram.filters import Command
 from aiogram.types import Message, FSInputFile
 from aiogram.enums import ChatAction
 from aiogram.fsm.context import FSMContext
-from .handlers_state import ChatGPTRequests
+from .handlers_state import ChatGPTRequests, CelebrityTalk
 import os
 from classes import gpt_client
-from keyboards import kb_replay
+from keyboards import kb_replay, ikb_celebrity
 
 command_router = Router()
 
@@ -77,10 +76,27 @@ async def cmd_gpt(message: Message, bot: Bot, state: FSMContext):
 	photo_path = os.path.join('resources', 'images', 'gpt.jpg')
 	msg_path = os.path.join('resources', 'messages', 'gpt.txt')
 	photo = FSInputFile(photo_path)
-	
 	with open(msg_path, 'r', encoding='UTF-8') as file:
 		message_text = file.read()
 	await message.answer_photo(
 		photo=photo,
 		caption=message_text,
+	)
+
+
+@command_router.message(Command('talk'))
+async def cmd_talk(message: Message, bot: Bot, state: FSMContext):
+	await bot.send_chat_action(
+		chat_id=message.from_user.id,
+		action=ChatAction.TYPING,
+	)
+	photo_path = os.path.join('resources', 'images', 'talk.jpg')
+	msg_path = os.path.join('resources', 'messages', 'talk.txt')
+	photo = FSInputFile(photo_path)
+	with open(msg_path, 'r', encoding='UTF-8') as file:
+		message_text = file.read()
+	await message.answer_photo(
+		photo=photo,
+		caption=message_text,
+		reply_markup=ikb_celebrity(),
 	)

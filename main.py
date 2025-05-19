@@ -1,11 +1,18 @@
 import asyncio
-import openai
 from aiogram import Bot, Dispatcher
 import os
+
+from aiogram.client.default import DefaultBotProperties
+from aiogram.enums import ParseMode
 import misc
 from handlers import main_router
 
-bot = Bot(token=os.getenv('BOT_TOKEN'))
+bot = Bot(
+	token=os.getenv('BOT_TOKEN'),
+	default=DefaultBotProperties(
+		parse_mode=ParseMode.MARKDOWN,
+	)
+)
 dp = Dispatcher()
 
 
