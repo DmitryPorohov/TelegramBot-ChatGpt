@@ -1,14 +1,13 @@
-from .commands import command_router
+from commands.commands import commands_router
 from .callback_handlers import callback_router
-from aiogram import Router
 from .message_handler import messages_router
 
-main_router = Router()
-main_router.include_routers(
-messages_router,
-	command_router,
+routers = [
+	messages_router,
+	commands_router,
 	callback_router,
-)
+]
+
 __all__ = [
-	'main_router',
+	'routers',
 ]

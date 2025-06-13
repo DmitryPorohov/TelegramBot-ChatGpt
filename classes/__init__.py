@@ -1,4 +1,4 @@
-from .chat_gpt import ChatGpt
+from .chat_gpt import ChatGpt, GPTMessage
 
 gpt_client = ChatGpt()
 __all__ = [

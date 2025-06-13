@@ -1,23 +1,62 @@
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-import os
-from .callback_data import CelebrityData
+
+from classes.buttons import Button, Buttons
+from classes.callback_data import CelebrityData, QuizData
 
 
 def ikb_celebrity():
 	keyboard = InlineKeyboardBuilder()
-	path_celebrity = os.path.join('resources','prompts')
-	celebrity_list = [file for file in os.listdir(path_celebrity) if file.startswith('talk_')]
-	buttons = []
-	for file in celebrity_list:
-		with open(os.path.join('resources','prompts', file), 'r', encoding='UTF-8') as txt_file:
-			buttons.append((txt_file.readline().split(', ')[0][5:], file.split('.')[0]))
-	for button_name, file_name in buttons:
+	buttons = Buttons()
+	for button in buttons:
 		keyboard.button(
-			text=button_name,
+			text=button.name,
 			callback_data=CelebrityData(
 				button='select_celebrity',
-				file_name=file_name,
+				file_name=button.callback,
 			),
 		)
 	keyboard.adjust(1)
+	return keyboard.as_markup()
+
+
+def ikb_quiz_select_topic():
+	keyboard = InlineKeyboardBuilder()
+	buttons_quiz_thems = [
+		Button('Язык Python', 'quiz_prog'),
+		Button('Математика', 'quiz_math'),
+		Button('Биология', 'quiz_biology')
+	]
+	buttons = Buttons(buttons_quiz_thems)
+	for button in buttons:
+		keyboard.button(
+			text=button.name,
+			callback_data=QuizData(
+				button='select_topic',
+				topic=button.callback,
+				topic_name=button.name,
+			)
+		
+		)
+	keyboard.adjust(1)
+	return keyboard.as_markup()
+
+
+def ikb_quiz_next(current_topic: QuizData):
+	keyboard = InlineKeyboardBuilder()
+	buttons_quiz_next = [
+		Button('Дальше', 'next_question'),
+		Button('Сменить тему', 'change_topic'),
+		Button('Закончить', 'finish_quiz')
+	]
+	buttons = Buttons(buttons_quiz_next)
+	for button in buttons:
+		keyboard.button(
+			text=button.name,
+			callback_data=QuizData(
+				button=button.callback,
+				topic=current_topic.topic,
+				topic_name=current_topic.topic_name
+			)
+		)
+	keyboard.adjust(2, 1)
 	return keyboard.as_markup()

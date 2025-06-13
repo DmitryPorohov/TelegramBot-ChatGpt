@@ -12,6 +12,7 @@ def kb_replay(buttons):
 		input_field_placeholder='Выберете пункт меню...',
 	)
 
+
 def kb_end_talk():
 	keyboard = ReplyKeyboardBuilder()
 	keyboard.button(
@@ -19,6 +20,6 @@ def kb_end_talk():
 	)
 	return keyboard.as_markup(
 		resize_keyboard=True,
-		input_field_placeholder='Выберете пункт меню...',
-		one_time_keyboard= True,
+		input_field_placeholder='Задайте свой вопрос...',
+		one_time_keyboard=True,
 	)

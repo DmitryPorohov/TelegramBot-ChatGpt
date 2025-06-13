@@ -1,0 +1,79 @@
+from aiogram import Router, F
+from aiogram.filters import Command
+from aiogram.types import Message
+from aiogram.fsm.context import FSMContext
+
+from classes import gpt_client
+from classes.chat_gpt import GPTMessage
+from classes.resource import Resource
+from handlers.state_handlers import ChatGPTRequests, Quiz
+from misc import bot_thinking
+
+from keyboards import kb_replay, ikb_celebrity, ikb_quiz_select_topic
+
+commands_router = Router()
+
+
+@commands_router.message(F.text == 'Закончить')
+@commands_router.message(Command('start'))
+async def cmd_start(message: Message):
+	resource = Resource('main')
+	buttons = [
+		'/random',
+		'/gpt',
+		'/talk',
+		'/quiz'
+	]
+	await message.answer_photo(
+		**resource.as_kwargs(),
+		reply_markup=kb_replay(buttons),
+	)
+
+
+@commands_router.message(F.text == 'Хочу ещё факт')
+@commands_router.message(Command('random'))
+async def cmd_random(message: Message):
+	await bot_thinking(message)
+	resource = Resource('random')
+	gpt_message = GPTMessage('random')
+	buttons = [
+		'Хочу ещё факт',
+		'Закончить',
+	]
+	msg_text = await gpt_client.request(gpt_message)
+	await message.answer_photo(
+		photo=resource.photo,
+		caption=msg_text,
+		reply_markup=kb_replay(buttons),
+	)
+
+
+@commands_router.message(Command('gpt'))
+async def cmd_gpt(message: Message, state: FSMContext):
+	await state.set_state(ChatGPTRequests.wait_for_request)
+	await bot_thinking(message)
+	resource = Resource('gpt')
+	await message.answer_photo(
+		**resource.as_kwargs(),
+	)
+
+
+@commands_router.message(Command('talk'))
+async def cmd_talk(message: Message):
+	await bot_thinking(message)
+	resource = Resource('talk')
+	await message.answer_photo(
+		**resource.as_kwargs(),
+		reply_markup=ikb_celebrity(),
+	)
+
+
+@commands_router.message(Command('quiz'))
+async def cmd_quiz(message: Message, state: FSMContext):
+	await state.set_state(Quiz.select_topic)
+	await bot_thinking(message)
+	resource = Resource('quiz')
+	await message.answer_photo(
+		**resource.as_kwargs(),
+		reply_markup=ikb_quiz_select_topic(),
+	)
