@@ -5,6 +5,10 @@ from classes.callback_data import CelebrityData, QuizData
 
 
 def ikb_celebrity():
+	"""Создает клавиатуру для взаимодействия с выбранной знаменитостью.
+
+	:return: Настроенная клавиатура с кнопками для общения со знаменитостью.
+	"""
 	keyboard = InlineKeyboardBuilder()
 	buttons = Buttons()
 	for button in buttons:
@@ -20,6 +24,11 @@ def ikb_celebrity():
 
 
 def ikb_quiz_select_topic():
+	"""
+	Создает клавиатуру для выбора темы викторины.
+
+	:return: Настроенная клавиатура с кнопками выбора тем.
+	"""
 	keyboard = InlineKeyboardBuilder()
 	buttons_quiz_thems = [
 		Button('Язык Python', 'quiz_prog'),
@@ -42,6 +51,12 @@ def ikb_quiz_select_topic():
 
 
 def ikb_quiz_next(current_topic: QuizData):
+	"""
+	Создает клавиатуру для перехода к следующему вопросу викторины.
+
+	:param current_topic: Данные о текущей теме викторины.
+	:return: Настроенная клавиатура с действиями для викторины.
+	"""
 	keyboard = InlineKeyboardBuilder()
 	buttons_quiz_next = [
 		Button('Дальше', 'next_question'),
