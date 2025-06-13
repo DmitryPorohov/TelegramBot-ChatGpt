@@ -10,3 +10,4 @@ class QuizData(CallbackData, prefix='QD'):
 	button: str
 	topic: str
 	topic_name: str
+
