@@ -6,10 +6,10 @@ from aiogram.fsm.context import FSMContext
 from classes import gpt_client
 from classes.chat_gpt import GPTMessage
 from classes.resource import Resource
-from handlers.state_handlers import ChatGPTRequests, Quiz
+from handlers.state_handlers import ChatGPTRequests, Quiz, Translator
 from misc import bot_thinking
 
-from keyboards import kb_replay, ikb_celebrity, ikb_quiz_select_topic
+from keyboards import kb_replay, ikb_celebrity, ikb_quiz_select_topic, ikb_translator
 
 commands_router = Router()
 
@@ -28,7 +28,8 @@ async def cmd_start(message: Message):
 		'/random',
 		'/gpt',
 		'/talk',
-		'/quiz'
+		'/quiz',
+		'/translator'
 	]
 	await message.answer_photo(
 		**resource.as_kwargs(),
@@ -108,4 +109,22 @@ async def cmd_quiz(message: Message, state: FSMContext):
 	await message.answer_photo(
 		**resource.as_kwargs(),
 		reply_markup=ikb_quiz_select_topic(),
+	)
+
+
+@commands_router.message(Command('translator'))
+async def cmd_translator(message: Message, state: FSMContext):
+	"""
+	Обрабатывает команду переводчика и отправляет пользователю сообщение с выбором направления перевода.
+
+	:param message: Сообщение, содержащее информацию о команде.
+	:param state: Контекст состояния для управления состоянием пользователя.
+	:return: None
+	"""
+	await state.set_state(Translator.select_direction)
+	await bot_thinking(message)
+	resource = Resource('translator')
+	await message.answer_photo(
+		**resource.as_kwargs(),
+		reply_markup=ikb_translator(),
 	)

@@ -10,9 +10,9 @@ from classes.resource import Resource
 from classes.chat_gpt import GPTMessage, GPTError, APIConnectionError
 
 
-from .state_handlers import CelebrityTalk, ChatGPTRequests, Quiz
+from .state_handlers import CelebrityTalk, ChatGPTRequests, Quiz, Translator
 
-from keyboards import kb_end_talk, ikb_quiz_next, kb_end_gpt
+from keyboards import kb_end_talk, ikb_quiz_next, kb_end_gpt, kb_replay
 from classes.callback_data import QuizData
 from commands.commands import cmd_start
 from misc import bot_thinking
@@ -170,3 +170,40 @@ async def quiz_answer(message: Message, state: FSMContext):
 	except Exception as e:
 		logger.error(f"Error in quiz_answer: {str(e)}")
 		await message.answer("Произошла ошибка при обработке вашего ответа. Попробуйте еще раз.")
+
+
+@messages_router.message(Translator.wait_for_text)
+async def translator_text_handler(message: Message, state: FSMContext):
+	"""
+	Обрабатывает текст для перевода и отправляет результат пользователю.
+
+	:param message: Сообщение с текстом для перевода
+	:param state: Контекст состояния
+	:return: None
+	"""
+	try:
+		await bot_thinking(message)
+		data = await state.get_data()
+		direction = data['direction']
+		# Создание GPT сообщения с соответствующим запросом
+		gpt_message = GPTMessage(direction)
+		gpt_message.update(GPTRole.USER, message.text)
+		
+		try:
+			response = await gpt_client.request(gpt_message)
+		except APIConnectionError as e:
+			logger.error(f"API error in translator_text_handler: {str(e)}")
+			await message.answer("Извините, произошла ошибка при переводе. Попробуйте позже.")
+			return
+			
+		# Отправить результат перевода
+		await message.answer(
+			f"Перевод:\n{response}",
+			reply_markup=kb_replay(['/translator', 'Закончить'])
+		)
+		
+		# Очистить состояние
+		await state.clear()
+	except Exception as e:
+		logger.error(f"Error in translator_text_handler: {str(e)}")
+		await message.answer("Произошла ошибка при обработке перевода. Попробуйте еще раз.")

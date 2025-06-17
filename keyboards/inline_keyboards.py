@@ -1,7 +1,8 @@
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from classes.buttons import Button, Buttons
-from classes.callback_data import CelebrityData, QuizData
+from classes.callback_data import CelebrityData, QuizData, TranslatorData
 
 
 def ikb_celebrity():
@@ -75,3 +76,21 @@ def ikb_quiz_next(current_topic: QuizData):
 		)
 	keyboard.adjust(2, 1)
 	return keyboard.as_markup()
+
+
+def ikb_translator() -> InlineKeyboardMarkup:
+	"""
+	Creates an inline keyboard for translation options
+	:return: InlineKeyboardMarkup with translation options
+	"""
+	builder = InlineKeyboardBuilder()
+	builder.add(InlineKeyboardButton(
+		text="ENG -> RUS",
+		callback_data=TranslatorData(button="eng_rus", direction="eng_rus").pack()
+	))
+	builder.add(InlineKeyboardButton(
+		text="RUS -> ENG",
+		callback_data=TranslatorData(button="rus_eng", direction="rus_eng").pack()
+	))
+	builder.adjust(2)
+	return builder.as_markup()

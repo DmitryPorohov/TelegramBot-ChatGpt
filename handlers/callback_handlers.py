@@ -1,16 +1,15 @@
 from aiogram import Router, F, Bot
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery
-from aiogram.exceptions import TelegramAPIError
 import logging
 
 from classes import gpt_client
-from classes.callback_data import CelebrityData, QuizData
+from classes.callback_data import CelebrityData, QuizData, TranslatorData
 from classes.resource import Resource
 from classes.buttons import Button
 from classes.enum_path import GPTRole
 from classes.chat_gpt import GPTMessage, GPTError, APIConnectionError
-from .state_handlers import CelebrityTalk, Quiz
+from .state_handlers import CelebrityTalk, Quiz, Translator
 from commands.commands import cmd_start, cmd_quiz
 from misc import bot_thinking
 
@@ -124,3 +123,24 @@ async def quiz_finish(callback: CallbackQuery, state: FSMContext) -> None:
 	except Exception as e:
 		logger.error(f"Error in quiz_finish: {str(e)}")
 		await callback.answer("Произошла ошибка при завершении квиза. Попробуйте еще раз.", show_alert=True)
+
+@callback_router.callback_query(Translator.select_direction, TranslatorData.filter())
+async def translator_direction_callback(callback: CallbackQuery, callback_data: TranslatorData, state: FSMContext):
+	"""
+	Обрабатывает выбор направления перевода и устанавливает состояние ожидания текста.
+
+	:param callback: CallbackQuery объект
+	:param callback_data: Данные callback с выбранным направлением перевода
+	:param state: Контекст состояния
+	:return: None
+	"""
+	try:
+		await callback.answer()
+		await state.set_state(Translator.wait_for_text)
+		await state.set_data({'direction': callback_data.button})
+		
+		direction_text = "английского на русский" if callback_data.button == "eng_rus" else "русского на английский"
+		await callback.message.answer(f"Введите текст для перевода с {direction_text}:")
+	except Exception as e:
+		logger.error(f"Error in translator_direction_callback: {str(e)}")
+		await callback.answer("Произошла ошибка. Попробуйте еще раз.", show_alert=True)
