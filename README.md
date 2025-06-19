@@ -78,8 +78,3 @@
    ```bash
    pip install -r requirements.txt
    ```
-
-4. Запустите бота:
-   ```bash
-   python main.py
-   ```

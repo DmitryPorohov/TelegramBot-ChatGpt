@@ -1,5 +1,3 @@
-from datetime import datetime
-
 from aiogram.enums import ChatAction
 from aiogram.types import Message
 

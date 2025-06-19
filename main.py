@@ -1,8 +1,7 @@
 import asyncio
-import misc
+
 import os
 import logging
-from typing import Optional
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
@@ -10,7 +9,7 @@ from aiogram.enums import ParseMode
 from aiogram.exceptions import TelegramAPIError
 
 from handlers import routers
-from classes.chat_gpt import GPTError, ConfigurationError
+from classes.chat_gpt import ConfigurationError
 
 # Configure logging
 logging.basicConfig(
