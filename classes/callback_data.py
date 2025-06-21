@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 from aiogram.filters.callback_data import CallbackData
 
 
@@ -16,4 +15,10 @@ class QuizData(CallbackData, prefix="quiz"):
 class TranslatorData(CallbackData, prefix="translator"):
 	button: str
 	direction: str
+
+
+class MediaData(CallbackData, prefix="media"):
+	button: str  # действие: select_category, select_genre, dislike, finish
+	category: str = ""
+	genre: str = ""
 

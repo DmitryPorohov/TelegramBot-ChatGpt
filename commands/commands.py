@@ -6,10 +6,11 @@ from aiogram.fsm.context import FSMContext
 from classes import gpt_client
 from classes.chat_gpt import GPTMessage
 from classes.resource import Resource
-from handlers.state_handlers import ChatGPTRequests, Quiz, Translator
+from handlers.state_handlers import ChatGPTRequests, Quiz, Translator, MediaRecommendation
 from misc import bot_thinking
 
 from keyboards import kb_replay, ikb_celebrity, ikb_quiz_select_topic, ikb_translator
+from keyboards.inline_keyboards import ikb_media_categories
 
 commands_router = Router()
 
@@ -127,4 +128,20 @@ async def cmd_translator(message: Message, state: FSMContext):
 	await message.answer_photo(
 		**resource.as_kwargs(),
 		reply_markup=ikb_translator(),
+	)
+
+
+@commands_router.message(Command('media'))
+async def cmd_media(message: Message, state: FSMContext):
+	"""
+	Обрабатывает команду /media, запускает сценарий рекомендаций.
+	:param message: Сообщение пользователя
+	:param state: FSMContext
+	"""
+	await state.set_state(MediaRecommendation.select_category)
+	resource = Resource('media')
+	await message.answer_photo(
+		photo=resource.photo,
+		caption=resource.text if resource.text is not None else '',
+		reply_markup=ikb_media_categories()
 	)

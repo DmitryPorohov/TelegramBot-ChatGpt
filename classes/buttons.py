@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from typing import Union, Optional, List, AsyncIterator
+from typing import Union, Optional, List
 
 from classes.enum_path import ResourcePath, Extensions
 
@@ -12,9 +12,9 @@ class Button:
 
 		:param args: Имя кнопки и колбэк, либо имя файла, для получения имени файла и считывания имени кнопки из файла.
 		"""
-		self.name = None
-		self.callback = None
-		self._path = None
+		self.name: Optional[str] = None
+		self.callback: Optional[str] = None
+		self._path: Optional[Path] = None
 		path = None
 		
 		if len(args) == 1:
@@ -24,9 +24,9 @@ class Button:
 			self.name, self.callback = args
 		elif len(args) > 2:
 			raise ValueError("Button() принимает один или два аргумента")
-		if self.name is None:
-			self._path: Path = Path(ResourcePath.PROMPTS.value, f'{path}{Extensions.TXT.value}')
-			self.name: Optional[str] = self.load_name()
+		if self.name is None and path is not None:
+			self._path = Path(ResourcePath.PROMPTS.value, f'{path}{Extensions.TXT.value}')
+			self.name = self.load_name()
 	
 	def load_name(self) -> Optional[str]:
 		"""
@@ -34,6 +34,8 @@ class Button:
 
 		:return: Имя знаменитости, если оно было загружено, иначе None.
 		"""
+		if self._path is None:
+			return None
 		with open(self._path, 'r', encoding='UTF-8') as txt_file:
 			return self._extract_celebrity_name(txt_file.readline())
 	
@@ -78,13 +80,13 @@ class Buttons:
 		buttons = [Button(file.split('.')[0]) for file in buttons_list]
 		return buttons
 	
-	def __iter__(self) -> AsyncIterator[Button]:
+	def __iter__(self):
 		"""
 		Возвращает итератор для кнопок.
 
 		:return: Итератор кнопок.
 		"""
-		return self
+		return iter(self.buttons)
 	
 	def __next__(self):
 		"""
@@ -96,3 +98,32 @@ class Buttons:
 		while self.buttons:
 			return self.buttons.pop(0)
 		raise StopIteration
+
+# Кнопки для категорий рекомендаций
+MEDIA_CATEGORIES = [
+	Button('Фильмы', 'movies'),
+	Button('Книги', 'books'),
+	Button('Музыка', 'music'),
+]
+
+# Пример жанров для каждой категории
+MEDIA_GENRES = {
+	'movies': [
+		Button('Драма', 'drama'),
+		Button('Комедия', 'comedy'),
+		Button('Боевик', 'action'),
+		Button('Фантастика', 'sci-fi'),
+	],
+	'books': [
+		Button('Роман', 'novel'),
+		Button('Детектив', 'detective'),
+		Button('Фэнтези', 'fantasy'),
+		Button('Научная литература', 'science'),
+	],
+	'music': [
+		Button('Рок', 'rock'),
+		Button('Поп', 'pop'),
+		Button('Классика', 'classical'),
+		Button('Джаз', 'jazz'),
+	],
+}

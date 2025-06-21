@@ -18,3 +18,9 @@ class Quiz(StatesGroup):
 class Translator(StatesGroup):
 	select_direction = State()
 	wait_for_text = State()
+
+
+class MediaRecommendation(StatesGroup):
+	select_category = State()
+	select_genre = State()
+	wait_for_recommendation = State()

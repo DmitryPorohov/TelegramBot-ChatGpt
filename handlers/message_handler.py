@@ -1,13 +1,12 @@
 from aiogram import Router, F
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
-from aiogram.exceptions import TelegramAPIError
 import logging
 
 from classes import gpt_client
 from classes.enum_path import GPTRole
 from classes.resource import Resource
-from classes.chat_gpt import GPTMessage, GPTError, APIConnectionError
+from classes.chat_gpt import GPTMessage, APIConnectionError
 
 
 from .state_handlers import CelebrityTalk, ChatGPTRequests, Quiz, Translator

@@ -1,20 +1,35 @@
 from aiogram import Router, F, Bot
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery
+from aiogram.types import CallbackQuery, FSInputFile, InputMediaPhoto, InputFileUnion, Message
 import logging
+from typing import cast, Optional, Dict, Any, TypedDict
 
-from classes import gpt_client
-from classes.callback_data import CelebrityData, QuizData, TranslatorData
+from classes.chat_gpt import ChatGpt, GPTMessage, GPTRole, APIConnectionError
 from classes.resource import Resource
+from classes.callback_data import MediaData, CelebrityData, QuizData, TranslatorData
+from keyboards.inline_keyboards import ikb_media_genres, ikb_media_actions
+from handlers.state_handlers import MediaRecommendation, CelebrityTalk, Quiz, Translator
 from classes.buttons import Button
-from classes.enum_path import GPTRole
-from classes.chat_gpt import GPTMessage, GPTError, APIConnectionError
-from .state_handlers import CelebrityTalk, Quiz, Translator
 from commands.commands import cmd_start, cmd_quiz
 from misc import bot_thinking
 
 logger = logging.getLogger(__name__)
 callback_router = Router()
+gpt_client = ChatGpt()
+
+class QuizStateData(TypedDict):
+	messages: GPTMessage
+	photo: FSInputFile
+	score: int
+	callback: QuizData
+
+class MediaStateData(TypedDict):
+	category: str
+	genre: str
+	last_rec: Dict[str, str]
+	disliked: list[str]
+	messages: GPTMessage
+	photo: FSInputFile
 
 
 @callback_router.callback_query(CelebrityData.filter(F.button == 'select_celebrity'))
@@ -73,25 +88,29 @@ async def quiz_next_question(callback: CallbackQuery, state: FSMContext) -> None
 		await callback.answer()
 		await state.set_state(Quiz.wait_for_answer)
 		
-		data: dict[str, GPTMessage | str | QuizData] = await state.get_data()
-		data['messages'].update(GPTRole.USER, 'quiz_more')
+		data = cast(QuizStateData, await state.get_data())
+		messages = cast(GPTMessage, data['messages'])
+		messages.update(GPTRole.USER, 'quiz_more')
 		
 		try:
-			response = await gpt_client.request(data['messages'])
+			response = await gpt_client.request(messages)
 		except APIConnectionError as e:
 			logger.error(f"API error in quiz_next_question: {str(e)}")
 			await callback.answer("Извините, произошла ошибка при загрузке следующего вопроса. Попробуйте позже.", show_alert=True)
 			return
 			
-		data['messages'].update(GPTRole.ASSISTANT, response)
+		messages.update(GPTRole.ASSISTANT, response)
+		photo = cast(FSInputFile, data['photo'])
+		callback_data = cast(QuizData, data['callback'])
+		
 		await callback.bot.send_photo(
 			chat_id=callback.from_user.id,
-			photo=data['photo'],
+			photo=cast(InputFileUnion, photo),
 			caption=response,
 			parse_mode=None,
 		)
 		await callback.answer(
-			text=f'Продолжаем тему {data['callback'].topic_name}'
+			text=f'Продолжаем тему {callback_data.topic_name}'
 		)
 		await state.update_data(data)
 	except Exception as e:
@@ -144,3 +163,198 @@ async def translator_direction_callback(callback: CallbackQuery, callback_data: 
 	except Exception as e:
 		logger.error(f"Error in translator_direction_callback: {str(e)}")
 		await callback.answer("Произошла ошибка. Попробуйте еще раз.", show_alert=True)
+
+
+def get_media_photo() -> Optional[FSInputFile]:
+	"""Вспомогательная функция для получения фотографии в виде FSInputFile"""
+	resource = Resource('media')
+	photo = resource.photo
+	if photo and isinstance(photo, FSInputFile):
+		return photo
+	return None
+
+@callback_router.callback_query(MediaRecommendation.select_category, MediaData.filter(F.button == 'select_category'))
+async def media_select_category(callback: CallbackQuery, callback_data: MediaData, state: FSMContext):
+	"""
+	Обрабатывает выбор категории медиа (фильмы, книги, музыка).
+	"""
+	try:
+		await callback.answer()
+		await state.set_state(MediaRecommendation.select_genre)
+		await state.update_data({'category': callback_data.category, 'disliked': []})
+		
+		photo = get_media_photo()
+		if photo and callback.message:
+			media = InputMediaPhoto(
+				media=cast(InputFileUnion, photo),
+				caption=f'Вы выбрали категорию: *{callback_data.category}*\nТеперь выберите жанр:',
+			)
+			message = cast(Message, callback.message)
+			await message.edit_media(
+				media=media,
+				reply_markup=ikb_media_genres(callback_data.category)
+			)
+		elif callback.message:
+			message = cast(Message, callback.message)
+			await message.edit_caption(
+				caption=f'Вы выбрали категорию: *{callback_data.category}*\nТеперь выберите жанр:',
+				reply_markup=ikb_media_genres(callback_data.category)
+			)
+	except Exception as e:
+		logger.error(f"Error in media_select_category: {str(e)}")
+		await callback.answer("Произошла ошибка. Попробуйте еще раз.", show_alert=True)
+
+@callback_router.callback_query(MediaRecommendation.select_genre, MediaData.filter(F.button == 'select_genre'))
+async def media_select_genre(callback: CallbackQuery, callback_data: MediaData, state: FSMContext):
+	"""
+	Обрабатывает выбор жанра и отправляет запрос рекомендации.
+	"""
+	try:
+		await callback.answer()
+		await state.set_state(MediaRecommendation.wait_for_recommendation)
+		data: Dict[str, Any] = await state.get_data()
+		
+		# Формируем запрос к ChatGPT
+		user_query = f'Категория: {callback_data.category}\nЖанр: {callback_data.genre}'
+		if data.get('disliked'):
+			user_query += f"\nНе предлагай: {', '.join(data['disliked'])}"
+			
+		gpt_message = GPTMessage('media')
+		gpt_message.update(GPTRole.USER, user_query)
+		
+		try:
+			response = await gpt_client.request(gpt_message)
+		except APIConnectionError as e:
+			logger.error(f"API error in media_select_genre: {str(e)}")
+			await callback.answer("Извините, произошла ошибка при получении рекомендации. Попробуйте позже.", show_alert=True)
+			return
+			
+		# Парсим ответ и сохраняем данные
+		rec = parse_media_response(response)
+		photo = get_media_photo()
+		if photo and callback.message:
+			state_data: MediaStateData = {
+				'category': callback_data.category,
+				'genre': callback_data.genre,
+				'last_rec': rec,
+				'disliked': data.get('disliked', []),
+				'messages': gpt_message,
+				'photo': photo
+			}
+			await state.update_data(state_data)
+			
+			# Отправляем рекомендацию
+			message = cast(Message, callback.message)
+			await message.delete()
+			caption = f"*{rec['title']}*\n_{rec['desc']}_"
+			
+			await message.answer_photo(
+				photo=cast(InputFileUnion, photo),
+				caption=caption,
+				reply_markup=ikb_media_actions(callback_data.category, callback_data.genre)
+			)
+		elif callback.message:
+			message = cast(Message, callback.message)
+			await message.answer(
+				text=f"*{rec['title']}*\n_{rec['desc']}_",
+				reply_markup=ikb_media_actions(callback_data.category, callback_data.genre)
+			)
+	except Exception as e:
+		logger.error(f"Error in media_select_genre: {str(e)}")
+		await callback.answer("Произошла ошибка. Попробуйте еще раз.", show_alert=True)
+
+@callback_router.callback_query(MediaRecommendation.wait_for_recommendation, MediaData.filter(F.button == 'dislike'))
+async def media_dislike(callback: CallbackQuery, callback_data: MediaData, state: FSMContext):
+	"""
+	Обрабатывает нажатие кнопки "Не нравится" и предлагает новую рекомендацию.
+	"""
+	try:
+		await callback.answer('Генерирую новую рекомендацию...')
+		data = cast(MediaStateData, await state.get_data())
+		
+		# Добавляем текущую рекомендацию в список нежелательных
+		disliked = data['disliked']
+		last_rec = data['last_rec']
+		if last_rec.get('title'):
+			disliked.append(last_rec['title'])
+		
+		# Запрашиваем новую рекомендацию
+		user_query = f'Категория: {callback_data.category}\nЖанр: {callback_data.genre}'
+		if disliked:
+			user_query += f"\nНе предлагай: {', '.join(disliked)}"
+			
+		gpt_message = GPTMessage('media')
+		gpt_message.update(GPTRole.USER, user_query)
+		
+		try:
+			response = await gpt_client.request(gpt_message)
+		except APIConnectionError as e:
+			logger.error(f"API error in media_dislike: {str(e)}")
+			await callback.answer("Извините, произошла ошибка при получении новой рекомендации. Попробуйте позже.", show_alert=True)
+			return
+			
+		# Обновляем данные и отправляем новую рекомендацию
+		rec = parse_media_response(response)
+		photo = get_media_photo()
+		if photo and callback.message:
+			state_data: MediaStateData = {
+				'category': callback_data.category,
+				'genre': callback_data.genre,
+				'last_rec': rec,
+				'disliked': disliked,
+				'messages': gpt_message,
+				'photo': photo
+			}
+			await state.update_data(state_data)
+			
+			message = cast(Message, callback.message)
+			await message.delete()
+			caption = f"*{rec['title']}*\n_{rec['desc']}_"
+			
+			await message.answer_photo(
+				photo=cast(InputFileUnion, photo),
+				caption=caption,
+				reply_markup=ikb_media_actions(callback_data.category, callback_data.genre)
+			)
+		elif callback.message:
+			message = cast(Message, callback.message)
+			await message.answer(
+				text=f"*{rec['title']}*\n_{rec['desc']}_",
+				reply_markup=ikb_media_actions(callback_data.category, callback_data.genre)
+			)
+	except Exception as e:
+		logger.error(f"Error in media_dislike: {str(e)}")
+		await callback.answer("Произошла ошибка. Попробуйте еще раз.", show_alert=True)
+
+@callback_router.callback_query(MediaRecommendation.wait_for_recommendation, MediaData.filter(F.button == 'finish'))
+async def media_finish(callback: CallbackQuery, state: FSMContext):
+	"""
+	Завершает сессию рекомендаций и возвращает в главное меню.
+	"""
+	try:
+		await callback.answer('Спасибо за использование рекомендаций!')
+		await state.clear()
+		if callback.message:
+			message = cast(Message, callback.message)
+			await message.delete()
+			await cmd_start(message)
+	except Exception as e:
+		logger.error(f"Error in media_finish: {str(e)}")
+		await callback.answer("Произошла ошибка. Попробуйте еще раз.", show_alert=True)
+
+def parse_media_response(response: str) -> Dict[str, str]:
+	"""
+	Парсит ответ от ChatGPT в формате:
+	Название: ...
+	Описание: ...
+	"""
+	lines = response.strip().split('\n')
+	result: Dict[str, str] = {'title': '', 'desc': ''}
+	
+	for line in lines:
+		if line.startswith('Название:'):
+			result['title'] = line.replace('Название:', '').strip()
+		elif line.startswith('Описание:'):
+			result['desc'] = line.replace('Описание:', '').strip()
+			
+	return result

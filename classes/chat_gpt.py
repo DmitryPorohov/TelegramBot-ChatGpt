@@ -102,7 +102,7 @@ class ChatGpt:
 				api_key=self._gpt_token,
 				http_client=httpx.AsyncClient(
 					proxy=self._proxy,
-					timeout=30.0  # Add timeout
+					timeout=30.0  # Добавление тайм-аута
 				)
 			)
 			return gpt_client
