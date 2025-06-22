@@ -1,14 +1,34 @@
+"""
+Модуль для создания инлайн-клавиатур.
+
+Содержит функции для создания различных типов инлайн-клавиатур:
+- get_translation_keyboard: Клавиатура для выбора направления перевода
+- get_quiz_keyboard: Клавиатура для викторины
+- get_media_keyboard: Клавиатура для выбора категорий и жанров медиа
+- get_gpt_keyboard: Клавиатура для диалога с GPT
+
+Зависимости:
+- aiogram: Фреймворк для Telegram ботов
+- core: Основные компоненты приложения
+- models: Модели данных
+"""
+
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-from classes.buttons import Button, Buttons, MEDIA_CATEGORIES, MEDIA_GENRES
-from classes.callback_data import CelebrityData, QuizData, TranslatorData, MediaData
+from common import MediaCategory, MediaGenre, MEDIA_CATEGORY_NAMES, MEDIA_GENRE_NAMES, MEDIA_GENRES_BY_CATEGORY
+from models import Button, Buttons, MEDIA_CATEGORIES, MEDIA_GENRES, CelebrityData, QuizData, TranslatorData, MediaData
 
 
-def ikb_celebrity():
-	"""Создает клавиатуру для взаимодействия с выбранной знаменитостью.
-
-	:return: Настроенная клавиатура с кнопками для общения со знаменитостью.
+def ikb_celebrity() -> InlineKeyboardMarkup:
+	"""
+	Создает клавиатуру для выбора знаменитости.
+	
+	Создает inline клавиатуру с кнопками для всех доступных знаменитостей,
+	загружая их из файлов промптов.
+	
+	Returns:
+		InlineKeyboardMarkup: Клавиатура с кнопками знаменитостей
 	"""
 	keyboard = InlineKeyboardBuilder()
 	buttons = Buttons()
@@ -24,11 +44,15 @@ def ikb_celebrity():
 	return keyboard.as_markup()
 
 
-def ikb_quiz_select_topic():
+def ikb_quiz_select_topic() -> InlineKeyboardMarkup:
 	"""
 	Создает клавиатуру для выбора темы викторины.
-
-	:return: Настроенная клавиатура с кнопками выбора тем.
+	
+	Создает inline клавиатуру с предопределенными темами викторины:
+	Python, Математика, Биология.
+	
+	Returns:
+		InlineKeyboardMarkup: Клавиатура с кнопками тем викторины
 	"""
 	keyboard = InlineKeyboardBuilder()
 	buttons_quiz_thems = [
@@ -45,18 +69,23 @@ def ikb_quiz_select_topic():
 				topic=button.callback if button.callback is not None else '',
 				topic_name=button.name if button.name is not None else ''
 			)
-		
 		)
 	keyboard.adjust(1)
 	return keyboard.as_markup()
 
 
-def ikb_quiz_next(current_topic: QuizData):
+def ikb_quiz_next(current_topic: QuizData) -> InlineKeyboardMarkup:
 	"""
-	Создает клавиатуру для перехода к следующему вопросу викторины.
-
-	:param current_topic: Данные о текущей теме викторины.
-	:return: Настроенная клавиатура с действиями для викторины.
+	Создает клавиатуру для навигации в викторине.
+	
+	Создает inline клавиатуру с кнопками для продолжения викторины,
+	смены темы или завершения.
+	
+	Args:
+		current_topic (QuizData): Данные о текущей теме викторины
+		
+	Returns:
+		InlineKeyboardMarkup: Клавиатура с действиями для викторины
 	"""
 	keyboard = InlineKeyboardBuilder()
 	buttons_quiz_next = [
@@ -80,8 +109,13 @@ def ikb_quiz_next(current_topic: QuizData):
 
 def ikb_translator() -> InlineKeyboardMarkup:
 	"""
-	Creates an inline keyboard for translation options
-	:return: InlineKeyboardMarkup with translation options
+	Создает клавиатуру для выбора направления перевода.
+	
+	Создает inline клавиатуру с кнопками для выбора направления
+	перевода: английский на русский или русский на английский.
+	
+	Returns:
+		InlineKeyboardMarkup: Клавиатура с опциями перевода
 	"""
 	builder = InlineKeyboardBuilder()
 	builder.add(InlineKeyboardButton(
@@ -96,10 +130,15 @@ def ikb_translator() -> InlineKeyboardMarkup:
 	return builder.as_markup()
 
 
-def ikb_media_categories():
+def ikb_media_categories() -> InlineKeyboardMarkup:
 	"""
-	Создаёт клавиатуру для выбора категории рекомендаций (фильмы, книги, музыка).
-	:return: InlineKeyboardMarkup
+	Создает клавиатуру для выбора категории медиа.
+	
+	Создает inline клавиатуру с кнопками для выбора категории
+	рекомендаций: фильмы, книги, музыка.
+	
+	Returns:
+		InlineKeyboardMarkup: Клавиатура с категориями медиа
 	"""
 	keyboard = InlineKeyboardBuilder()
 	for button in MEDIA_CATEGORIES:
@@ -111,11 +150,18 @@ def ikb_media_categories():
 	return keyboard.as_markup()
 
 
-def ikb_media_genres(category: str):
+def ikb_media_genres(category: str) -> InlineKeyboardMarkup:
 	"""
-	Создаёт клавиатуру для выбора жанра в выбранной категории.
-	:param category: выбранная категория (movies, books, music)
-	:return: InlineKeyboardMarkup
+	Создает клавиатуру для выбора жанра в выбранной категории.
+	
+	Создает inline клавиатуру с кнопками жанров для выбранной
+	категории медиа (фильмы, книги, музыка).
+	
+	Args:
+		category (str): Выбранная категория (movies, books, music)
+		
+	Returns:
+		InlineKeyboardMarkup: Клавиатура с жанрами для категории
 	"""
 	keyboard = InlineKeyboardBuilder()
 	for button in MEDIA_GENRES.get(category, []):
@@ -127,10 +173,19 @@ def ikb_media_genres(category: str):
 	return keyboard.as_markup()
 
 
-def ikb_media_actions(category: str, genre: str):
+def ikb_media_actions(category: str, genre: str) -> InlineKeyboardMarkup:
 	"""
-	Создаёт клавиатуру для действий над рекомендацией ("Не нравится", "Закончить").
-	:return: InlineKeyboardMarkup
+	Создает клавиатуру для действий с рекомендациями.
+	
+	Создает inline клавиатуру с кнопками для взаимодействия
+	с полученной рекомендацией: "Не нравится" и "Закончить".
+	
+	Args:
+		category (str): Выбранная категория медиа
+		genre (str): Выбранный жанр
+		
+	Returns:
+		InlineKeyboardMarkup: Клавиатура с действиями для рекомендаций
 	"""
 	keyboard = InlineKeyboardBuilder()
 	keyboard.button(

@@ -1,20 +1,42 @@
+"""
+Модуль для обработки сообщений пользователей.
+
+Содержит функции для обработки различных типов сообщений:
+- handle_start: Обработка команды /start
+- handle_help: Обработка команды /help
+- handle_translate: Обработка перевода текста
+- handle_quiz: Обработка викторины
+- handle_media: Обработка рекомендаций медиа
+- handle_gpt: Обработка диалога с GPT
+
+Основные возможности:
+- Обработка текстовых сообщений пользователей
+- Управление состояниями FSM
+- Интеграция с ChatGPT API
+- Обработка ошибок и исключений
+
+Зависимости:
+- aiogram: Фреймворк для Telegram ботов
+- models: Модели данных
+- common: Основные компоненты приложения
+- keyboards: Клавиатуры
+- exception: Обработка исключений
+"""
+
 from aiogram import Router, F
-from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
+from aiogram.fsm.context import FSMContext
 import logging
 
-from classes import gpt_client
-from classes.enum_path import GPTRole
-from classes.resource import Resource
-from classes.chat_gpt import GPTMessage, APIConnectionError
-
+from models import gpt_client, GPTMessage, QuizData
+from common import Resource, GPTRole, MESSAGES
+from exception import APIConnectionError, log_exception
 
 from .state_handlers import CelebrityTalk, ChatGPTRequests, Quiz, Translator
 
-from keyboards import kb_end_talk, ikb_quiz_next, kb_end_gpt, kb_replay
-from classes.callback_data import QuizData
-from commands.commands import cmd_start
-from misc import bot_thinking
+from keyboards import kb_end_talk, ikb_quiz_next, kb_end_gpt
+from commands import cmd_start
+from utils import bot_thinking
 
 logger = logging.getLogger(__name__)
 messages_router = Router()
@@ -33,7 +55,7 @@ async def end_talk_handler(message: Message, state: FSMContext):
 		await state.clear()
 		await cmd_start(message)
 	except Exception as e:
-		logger.error(f"Error in end_talk_handler: {str(e)}")
+		log_exception(e, "Error in end_talk_handler")
 		await message.answer("Произошла ошибка при завершении разговора. Попробуйте еще раз.")
 
 
@@ -54,7 +76,7 @@ async def talk_handler(message: Message, state: FSMContext):
 		try:
 			response = await gpt_client.request(data['messages'])
 		except APIConnectionError as e:
-			logger.error(f"API error in talk_handler: {str(e)}")
+			log_exception(e, "API error in talk_handler")
 			await message.answer("Извините, произошла ошибка при обработке вашего запроса. Попробуйте позже.")
 			return
 			
@@ -66,7 +88,7 @@ async def talk_handler(message: Message, state: FSMContext):
 		data['messages'].update(GPTRole.ASSISTANT, response)
 		await state.update_data(data)
 	except Exception as e:
-		logger.error(f"Error in talk_handler: {str(e)}")
+		log_exception(e, "Error in talk_handler")
 		await message.answer("Произошла ошибка при обработке вашего сообщения. Попробуйте еще раз.")
 
 
@@ -83,7 +105,7 @@ async def end_gpt_handler(message: Message, state: FSMContext):
 		await state.clear()
 		await cmd_start(message)
 	except Exception as e:
-		logger.error(f"Error in end_gpt_handler: {str(e)}")
+		log_exception(e, "Error in end_gpt_handler")
 		await message.answer("Произошла ошибка при завершении разговора. Попробуйте еще раз.")
 
 
@@ -112,7 +134,7 @@ async def wait_for_gpt_handler(message: Message, state: FSMContext):
 		try:
 			response = await gpt_client.request(data['messages'])
 		except APIConnectionError as e:
-			logger.error(f"API error in wait_for_gpt_handler: {str(e)}")
+			log_exception(e, "API error in wait_for_gpt_handler")
 			await message.answer("Извините, произошла ошибка при обработке вашего запроса. Попробуйте позже.")
 			return
 			
@@ -125,7 +147,7 @@ async def wait_for_gpt_handler(message: Message, state: FSMContext):
 			reply_markup=kb_end_gpt(),
 		)
 	except Exception as e:
-		logger.error(f"Error in wait_for_gpt_handler: {str(e)}")
+		log_exception(e, "Error in wait_for_gpt_handler")
 		await message.answer("Произошла ошибка при обработке вашего сообщения. Попробуйте еще раз.")
 
 
@@ -149,7 +171,7 @@ async def quiz_answer(message: Message, state: FSMContext):
 		try:
 			response = await gpt_client.request(data['messages'])
 		except APIConnectionError as e:
-			logger.error(f"API error in quiz_answer: {str(e)}")
+			log_exception(e, "API error in quiz_answer")
 			await message.answer("Извините, произошла ошибка при обработке вашего ответа. Попробуйте позже.")
 			return
 			
@@ -167,7 +189,7 @@ async def quiz_answer(message: Message, state: FSMContext):
 		
 		await state.set_state(Quiz.wait_press_button)
 	except Exception as e:
-		logger.error(f"Error in quiz_answer: {str(e)}")
+		log_exception(e, "Error in quiz_answer")
 		await message.answer("Произошла ошибка при обработке вашего ответа. Попробуйте еще раз.")
 
 
@@ -191,18 +213,18 @@ async def translator_text_handler(message: Message, state: FSMContext):
 		try:
 			response = await gpt_client.request(gpt_message)
 		except APIConnectionError as e:
-			logger.error(f"API error in translator_text_handler: {str(e)}")
+			log_exception(e, "API error in translator_text_handler")
 			await message.answer("Извините, произошла ошибка при переводе. Попробуйте позже.")
 			return
 			
 		# Отправить результат перевода
 		await message.answer(
 			f"Перевод:\n{response}",
-			reply_markup=kb_replay(['/translator', 'Закончить'])
+			reply_markup=kb_end_gpt(),
 		)
 		
 		# Очистить состояние
 		await state.clear()
 	except Exception as e:
-		logger.error(f"Error in translator_text_handler: {str(e)}")
+		log_exception(e, "Error in translator_text_handler")
 		await message.answer("Произошла ошибка при обработке перевода. Попробуйте еще раз.")
