@@ -1,35 +1,41 @@
+"""
+Модуль для обработки callback-запросов.
+
+Содержит функции для обработки нажатий на инлайн-кнопки:
+- handle_translation_callback: Обработка выбора направления перевода
+- handle_quiz_callback: Обработка ответов в викторине
+- handle_media_callback: Обработка выбора категорий и жанров медиа
+- handle_gpt_callback: Обработка диалога с GPT
+- handle_celebrity_callback: Обработка разговора со знаменитостями
+
+Зависимости:
+- aiogram: Фреймворк для Telegram ботов
+- models: Модели данных
+- core: Основные компоненты приложения
+- keyboards: Inline клавиатуры
+- commands: Команды бота
+- utils: Вспомогательные функции
+- exception: Обработка исключений
+"""
+
 from aiogram import Router, F, Bot
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, FSInputFile, InputMediaPhoto, InputFileUnion, Message
 import logging
 from typing import cast, Optional, Dict, Any, TypedDict
+import asyncio
 
-from classes.chat_gpt import ChatGpt, GPTMessage, GPTRole, APIConnectionError
-from classes.resource import Resource
-from classes.callback_data import MediaData, CelebrityData, QuizData, TranslatorData
-from keyboards.inline_keyboards import ikb_media_genres, ikb_media_actions
+from models import ChatGpt, GPTMessage, GPTRole, MediaData, CelebrityData, QuizData, TranslatorData, QuizStateData, MediaStateData, Button
+from common import Resource
+from keyboards import ikb_media_genres, ikb_media_actions
 from handlers.state_handlers import MediaRecommendation, CelebrityTalk, Quiz, Translator
-from classes.buttons import Button
-from commands.commands import cmd_start, cmd_quiz
-from misc import bot_thinking
+from commands import cmd_start, cmd_quiz
+from utils import bot_thinking
+from exception import APIConnectionError, log_exception
 
 logger = logging.getLogger(__name__)
 callback_router = Router()
 gpt_client = ChatGpt()
-
-class QuizStateData(TypedDict):
-	messages: GPTMessage
-	photo: FSInputFile
-	score: int
-	callback: QuizData
-
-class MediaStateData(TypedDict):
-	category: str
-	genre: str
-	last_rec: Dict[str, str]
-	disliked: list[str]
-	messages: GPTMessage
-	photo: FSInputFile
 
 
 @callback_router.callback_query(CelebrityData.filter(F.button == 'select_celebrity'))
@@ -49,7 +55,7 @@ async def celebrity_callbacks(callback: CallbackQuery, callback_data: CelebrityD
 		await state.set_state(CelebrityTalk.wait_for_answer)
 		await state.set_data({'messages': request_message, 'photo': photo})
 	except Exception as e:
-		logger.error(f"Error in celebrity_callbacks: {str(e)}")
+		log_exception(e, "Error in celebrity_callbacks")
 		await callback.answer("Произошла ошибка. Попробуйте еще раз.", show_alert=True)
 
 
@@ -66,7 +72,7 @@ async def quiz_callbacks(callback: CallbackQuery, callback_data: QuizData, bot: 
 		try:
 			response = await gpt_client.request(request_message)
 		except APIConnectionError as e:
-			logger.error(f"API error in quiz_callbacks: {str(e)}")
+			log_exception(e, "API error in quiz_callbacks")
 			await callback.answer("Извините, произошла ошибка при загрузке вопроса. Попробуйте позже.", show_alert=True)
 			return
 			
@@ -78,7 +84,7 @@ async def quiz_callbacks(callback: CallbackQuery, callback_data: QuizData, bot: 
 		await state.set_state(Quiz.wait_for_answer)
 		await state.set_data({'messages': request_message, 'photo': photo, 'score': 0, 'callback': callback_data})
 	except Exception as e:
-		logger.error(f"Error in quiz_callbacks: {str(e)}")
+		log_exception(e, "Error in quiz_callbacks")
 		await callback.answer("Произошла ошибка. Попробуйте еще раз.", show_alert=True)
 
 
@@ -95,7 +101,7 @@ async def quiz_next_question(callback: CallbackQuery, state: FSMContext) -> None
 		try:
 			response = await gpt_client.request(messages)
 		except APIConnectionError as e:
-			logger.error(f"API error in quiz_next_question: {str(e)}")
+			log_exception(e, "API error in quiz_next_question")
 			await callback.answer("Извините, произошла ошибка при загрузке следующего вопроса. Попробуйте позже.", show_alert=True)
 			return
 			
@@ -114,7 +120,7 @@ async def quiz_next_question(callback: CallbackQuery, state: FSMContext) -> None
 		)
 		await state.update_data(data)
 	except Exception as e:
-		logger.error(f"Error in quiz_next_question: {str(e)}")
+		log_exception(e, "Error in quiz_next_question")
 		await callback.answer("Произошла ошибка. Попробуйте еще раз.", show_alert=True)
 
 
@@ -127,7 +133,7 @@ async def quiz_change_topic(callback: CallbackQuery, state: FSMContext) -> None:
 		await state.clear()
 		await cmd_quiz(message, state)
 	except Exception as e:
-		logger.error(f"Error in quiz_change_topic: {str(e)}")
+		log_exception(e, "Error in quiz_change_topic")
 		await callback.answer("Произошла ошибка при смене темы. Попробуйте еще раз.", show_alert=True)
 
 
@@ -140,7 +146,7 @@ async def quiz_finish(callback: CallbackQuery, state: FSMContext) -> None:
 		await state.clear()
 		await cmd_start(message)
 	except Exception as e:
-		logger.error(f"Error in quiz_finish: {str(e)}")
+		log_exception(e, "Error in quiz_finish")
 		await callback.answer("Произошла ошибка при завершении квиза. Попробуйте еще раз.", show_alert=True)
 
 @callback_router.callback_query(Translator.select_direction, TranslatorData.filter())
@@ -161,7 +167,7 @@ async def translator_direction_callback(callback: CallbackQuery, callback_data: 
 		direction_text = "английского на русский" if callback_data.button == "eng_rus" else "русского на английский"
 		await callback.message.answer(f"Введите текст для перевода с {direction_text}:")
 	except Exception as e:
-		logger.error(f"Error in translator_direction_callback: {str(e)}")
+		log_exception(e, "Error in translator_direction_callback")
 		await callback.answer("Произошла ошибка. Попробуйте еще раз.", show_alert=True)
 
 
@@ -201,7 +207,7 @@ async def media_select_category(callback: CallbackQuery, callback_data: MediaDat
 				reply_markup=ikb_media_genres(callback_data.category)
 			)
 	except Exception as e:
-		logger.error(f"Error in media_select_category: {str(e)}")
+		log_exception(e, "Error in media_select_category")
 		await callback.answer("Произошла ошибка. Попробуйте еще раз.", show_alert=True)
 
 @callback_router.callback_query(MediaRecommendation.select_genre, MediaData.filter(F.button == 'select_genre'))
@@ -225,7 +231,7 @@ async def media_select_genre(callback: CallbackQuery, callback_data: MediaData, 
 		try:
 			response = await gpt_client.request(gpt_message)
 		except APIConnectionError as e:
-			logger.error(f"API error in media_select_genre: {str(e)}")
+			log_exception(e, "API error in media_select_genre")
 			await callback.answer("Извините, произошла ошибка при получении рекомендации. Попробуйте позже.", show_alert=True)
 			return
 			
@@ -260,7 +266,7 @@ async def media_select_genre(callback: CallbackQuery, callback_data: MediaData, 
 				reply_markup=ikb_media_actions(callback_data.category, callback_data.genre)
 			)
 	except Exception as e:
-		logger.error(f"Error in media_select_genre: {str(e)}")
+		log_exception(e, "Error in media_select_genre")
 		await callback.answer("Произошла ошибка. Попробуйте еще раз.", show_alert=True)
 
 @callback_router.callback_query(MediaRecommendation.wait_for_recommendation, MediaData.filter(F.button == 'dislike'))
@@ -289,7 +295,7 @@ async def media_dislike(callback: CallbackQuery, callback_data: MediaData, state
 		try:
 			response = await gpt_client.request(gpt_message)
 		except APIConnectionError as e:
-			logger.error(f"API error in media_dislike: {str(e)}")
+			log_exception(e, "API error in media_dislike")
 			await callback.answer("Извините, произошла ошибка при получении новой рекомендации. Попробуйте позже.", show_alert=True)
 			return
 			
@@ -323,7 +329,7 @@ async def media_dislike(callback: CallbackQuery, callback_data: MediaData, state
 				reply_markup=ikb_media_actions(callback_data.category, callback_data.genre)
 			)
 	except Exception as e:
-		logger.error(f"Error in media_dislike: {str(e)}")
+		log_exception(e, "Error in media_dislike")
 		await callback.answer("Произошла ошибка. Попробуйте еще раз.", show_alert=True)
 
 @callback_router.callback_query(MediaRecommendation.wait_for_recommendation, MediaData.filter(F.button == 'finish'))
@@ -339,7 +345,7 @@ async def media_finish(callback: CallbackQuery, state: FSMContext):
 			await message.delete()
 			await cmd_start(message)
 	except Exception as e:
-		logger.error(f"Error in media_finish: {str(e)}")
+		log_exception(e, "Error in media_finish")
 		await callback.answer("Произошла ошибка. Попробуйте еще раз.", show_alert=True)
 
 def parse_media_response(response: str) -> Dict[str, str]:
